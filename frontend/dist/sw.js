@@ -1,6 +1,7 @@
-const CACHE = 'sambat-v2';
+/* Minimal SW: only offline fallback for page navigations. Never intercept JS/CSS/assets. */
+const CACHE = 'sambat-v3';
 
-self.addEventListener('install', (e) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -14,28 +15,17 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (e.request.mode !== 'navigate') return;
 
-  const isDocument =
-    e.request.mode === 'navigate' ||
-    e.request.destination === 'document' ||
-    /\.html?$/i.test(new URL(e.request.url).pathname);
-
-  // HTML/navigation: network-first so new Vercel deploys are not stuck on old index.html
-  if (isDocument) {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-          return res;
-        })
-        .catch(() => caches.match(e.request).then((c) => c || caches.match('/index.html')))
-    );
-    return;
-  }
-
-  // Static assets: cache-first fallback to network
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put('/index.html', copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match('/index.html'))
   );
 });
