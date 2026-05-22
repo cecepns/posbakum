@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
-import { MessageSquare, FileText, Building2, Search, Clock, Star, Shield } from 'lucide-react';
+import { MessageSquare, FileText, Building2, Search, Clock, Star, Shield, ArrowRight } from 'lucide-react';
 import berakhlakImg from '@/assets/berakhlak.jpeg';
 import menpisoptimaImg from '@/assets/menpisoptima.jpeg';
 
 const features = [
-  { icon: MessageSquare, title: 'Konsultasi Online', desc: 'Ajukan pertanyaan hukum, dapatkan jawaban dengan nomor tiket terlacak.' },
-  { icon: Clock, title: 'Respon Cepat', desc: 'Knowledge Base otomatis menjawab 70% pertanyaan umum dalam hitungan detik.' },
-  { icon: Search, title: 'Tracking Tiket', desc: 'Pantau status konsultasi: menunggu, diproses, dijawab, selesai.' },
-  { icon: FileText, title: 'Bantuan Dokumen', desc: 'Bantuan penyusunan gugatan cerai, perwalian, adopsi, dan dokumen lainnya.' },
-  { icon: Building2, title: 'Direktori OBH', desc: 'Temukan Lembaga Bantuan Hukum terakreditasi untuk pendampingan sidang.' },
-  { icon: Star, title: 'Feedback IKM', desc: 'Nilai layanan untuk perbaikan berkelanjutan Posbakum.' },
+  { icon: MessageSquare, title: 'Konsultasi Online', desc: 'Ajukan pertanyaan hukum, dapatkan jawaban dengan nomor tiket terlacak.', to: '/konsultasi', action: 'Ajukan Konsultasi' },
+  { icon: Clock, title: 'Respon Cepat', desc: 'Knowledge Base otomatis menjawab 70% pertanyaan umum dalam hitungan detik.', to: '/faq', action: 'Lihat FAQ' },
+  { icon: Search, title: 'Tracking Tiket', desc: 'Pantau status konsultasi: menunggu, diproses, dijawab, selesai.', to: '/tracking', action: 'Lacak Tiket' },
+  { icon: FileText, title: 'Bantuan Dokumen', desc: 'Bantuan penyusunan gugatan cerai, perwalian, adopsi, dan dokumen lainnya.', to: '/dokumen', action: 'Ajukan Dokumen' },
+  { icon: Building2, title: 'Direktori OBH', desc: 'Temukan Lembaga Bantuan Hukum terakreditasi untuk pendampingan sidang.', to: '/obh', action: 'Cari OBH' },
+  { icon: Star, title: 'Feedback IKM', desc: 'Nilai layanan untuk perbaikan berkelanjutan Posbakum.', to: '/dashboard', action: 'Dashboard Saya' },
 ];
 
 export default function HomePage() {
@@ -67,11 +67,18 @@ export default function HomePage() {
           <h2 className="text-center text-2xl font-bold text-slate-900">Fitur Unggulan</h2>
           <p className="mt-2 text-center text-slate-500">Inovasi ticketing, knowledge base, dan feedback loop</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="card hover:border-primary-200 hover:shadow-md transition">
+            {features.map(({ icon: Icon, title, desc, to, action }) => (
+              <div key={title} className="card flex flex-col hover:border-primary-200 hover:shadow-md transition">
                 <Icon className="h-8 w-8 text-primary-600" />
                 <h3 className="mt-3 font-semibold">{title}</h3>
-                <p className="mt-1 text-sm text-slate-500">{desc}</p>
+                <p className="mt-1 flex-1 text-sm text-slate-500">{desc}</p>
+                <Link
+                  to={to}
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary-700 hover:text-primary-800"
+                >
+                  {action}
+                  <ArrowRight size={16} />
+                </Link>
               </div>
             ))}
           </div>
