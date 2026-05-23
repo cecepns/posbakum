@@ -43,8 +43,8 @@ export default function OBHPage() {
                 <Building2 className="h-8 w-8 text-primary-600 shrink-0" />
                 <div>
                   <h3 className="font-semibold">{obh.name}</h3>
-                  {obh.is_partner && <span className="badge bg-gold-100 text-gold-800 mt-1">Mitra PN</span>}
-                  {obh.accreditation_no && <p className="text-xs text-slate-400 mt-1">Akreditasi: {obh.accreditation_no}</p>}
+                  {!!obh.is_partner && <span className="badge bg-gold-100 text-gold-800 mt-1">Mitra PN</span>}
+                  {!!obh.accreditation_no && <p className="text-xs text-slate-400 mt-1">Akreditasi: {obh.accreditation_no}</p>}
                 </div>
               </div>
               <div className="mt-3 space-y-1.5 text-sm text-slate-600">

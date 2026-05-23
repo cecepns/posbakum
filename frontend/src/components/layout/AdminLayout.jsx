@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, BookOpen, FileText, Building2,
-  BarChart3, Bell, Menu, X, LogOut, Scale, Users,
+  BarChart3, Bell, Menu, X, LogOut, Scale, Users, Layers, Settings,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -12,16 +12,18 @@ const sidebarLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/tickets', icon: Ticket, label: 'Manajemen Tiket' },
   { to: '/admin/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
+  { to: '/admin/layanan', icon: Layers, label: 'Jenis Layanan' },
   { to: '/admin/documents', icon: FileText, label: 'Permohonan Dokumen' },
   { to: '/admin/obh', icon: Building2, label: 'Direktori OBH' },
   { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/admin/users', icon: Users, label: 'Pengguna' },
+  { to: '/admin/settings', icon: Settings, label: 'Pengaturan Kontak' },
 ];
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const { user, logout, isStaff, loading } = useAuth();
+  const { user, logout, isStaff, isAdmin, loading } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function AdminLayout() {
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}><X size={20} /></button>
         </div>
         <nav className="space-y-1 p-3">
-          {sidebarLinks.map(({ to, icon: Icon, label, end }) => (
+          {sidebarLinks.filter((link) => link.to !== '/admin/settings' || isAdmin).map(({ to, icon: Icon, label, end }) => (
             <Link key={to} to={to} end={end} onClick={() => setSidebarOpen(false)}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${location.pathname === to || (!end && location.pathname.startsWith(to)) ? 'bg-primary-700 text-white' : 'text-primary-200 hover:bg-primary-800'}`}>
               <Icon size={18} /> {label}

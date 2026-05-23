@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, FileText, Plus, Star } from 'lucide-react';
+import { Ticket, FileText, Plus, Download } from 'lucide-react';
+import { useLayananCatalog } from '@/hooks/useLayananCatalog';
+import { getUploadUrl } from '@/utils/config';
+import { DOC_TYPES } from '@/utils/format';
 import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -15,6 +18,9 @@ export default function DashboardPage() {
   const [tickets, setTickets] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { bySlug } = useLayananCatalog('layanan_2');
+
+  const typeLabel = (slug) => bySlug[slug] || DOC_TYPES[slug] || slug;
 
   useEffect(() => {
     if (!user) return;
@@ -75,7 +81,13 @@ export default function DashboardPage() {
               <div key={d.id} className="card flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{d.request_number}</p>
-                  <p className="text-sm text-slate-500">{d.document_type}</p>
+                  <p className="text-sm text-slate-500">{typeLabel(d.document_type)}</p>
+                  {d.draft_file && ['completed', 'approved'].includes(d.status) && (
+                    <a href={getUploadUrl(d.draft_file)} target="_blank" rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-sm text-primary-700 hover:underline">
+                      <Download size={14} /> Unduh dokumen hasil
+                    </a>
+                  )}
                 </div>
                 <StatusBadge status={d.status} />
               </div>

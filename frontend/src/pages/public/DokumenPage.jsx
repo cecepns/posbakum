@@ -1,35 +1,46 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import { FileText, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
 import { useAuth } from '@/context/AuthContext';
+import { useLayananCatalog } from '@/hooks/useLayananCatalog';
 import { DOC_TYPES } from '@/utils/format';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function DokumenPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { items: layananItems, loading: layananLoading } = useLayananCatalog('layanan_2');
   const [form, setForm] = useState({
     document_type: 'gugatan_cerai',
     case_chronology: '',
     applicant_name: '', applicant_nik: '', applicant_address: '', applicant_phone: '',
   });
+  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const permohonanOptions = layananItems.length
+    ? layananItems.map((i) => ({ value: i.slug, label: i.name }))
+    : Object.entries(DOC_TYPES).map(([value, label]) => ({ value, label }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) { toast.error('Silakan login'); navigate('/login'); return; }
     setLoading(true);
     try {
-      const res = await api.post(API_ENDPOINTS.DOCUMENTS.CREATE, {
-        document_type: form.document_type,
-        case_chronology: form.case_chronology,
-        applicant_data: {
-          name: form.applicant_name, nik: form.applicant_nik,
-          address: form.applicant_address, phone: form.applicant_phone,
-        },
-      });
+      const fd = new FormData();
+      fd.append('document_type', form.document_type);
+      fd.append('case_chronology', form.case_chronology);
+      fd.append('applicant_data', JSON.stringify({
+        name: form.applicant_name,
+        nik: form.applicant_nik,
+        address: form.applicant_address,
+        phone: form.applicant_phone,
+      }));
+      files.forEach((f) => fd.append('files', f));
+      const res = await api.post(API_ENDPOINTS.DOCUMENTS.CREATE, fd);
       toast.success(`Permohonan ${res.data.data.request_number} berhasil`);
       navigate('/dashboard');
     } catch (err) {
@@ -50,10 +61,12 @@ export default function DokumenPage() {
       )}
       <form onSubmit={handleSubmit} className="card mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Jenis Dokumen</label>
-          <select className="input-field" value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })}>
-            {Object.entries(DOC_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <label className="mb-1 block text-sm font-medium">Jenis Permohonan</label>
+          {layananLoading ? <LoadingSpinner /> : (
+            <select className="input-field" value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })}>
+              {permohonanOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           {[
@@ -74,6 +87,13 @@ export default function DokumenPage() {
         <div>
           <label className="mb-1 block text-sm font-medium">Kronologi Kasus</label>
           <textarea className="input-field" rows={6} value={form.case_chronology} onChange={(e) => setForm({ ...form, case_chronology: e.target.value })} required />
+        </div>
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium">
+            <Paperclip size={16} /> Upload Dokumen Pendukung (PDF/JPG, max 5 file)
+          </label>
+          <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            onChange={(e) => setFiles([...e.target.files])} className="input-field" />
         </div>
         <button type="submit" disabled={loading || !user} className="btn-primary w-full">
           <FileText size={16} /> Ajukan Permohonan

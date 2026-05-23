@@ -19,6 +19,30 @@ CREATE TABLE users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Layanan catalog (flexible jenis layanan 1 & 2)
+CREATE TABLE layanan_catalog (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(100) NOT NULL UNIQUE,
+  layanan_group ENUM('layanan_1', 'layanan_2') NOT NULL,
+  description TEXT,
+  sort_order INT DEFAULT 0,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Site settings (WA, Zoom, dll)
+CREATE TABLE site_settings (
+  setting_key VARCHAR(100) PRIMARY KEY,
+  setting_value TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO site_settings (setting_key, setting_value) VALUES
+('wa_number', '6281234567890'),
+('zoom_link', 'https://zoom.us/j/posbakum');
+
 -- Knowledge Base (auto-reply templates)
 CREATE TABLE knowledge_base (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -40,7 +64,7 @@ CREATE TABLE tickets (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ticket_number VARCHAR(20) UNIQUE NOT NULL,
   user_id INT NOT NULL,
-  service_type ENUM('konsultasi', 'informasi', 'advis', 'perkara', 'dokumen') DEFAULT 'konsultasi',
+  service_type VARCHAR(100) DEFAULT 'konsultasi',
   category VARCHAR(100),
   subject VARCHAR(255) NOT NULL,
   question TEXT NOT NULL,
@@ -103,14 +127,12 @@ CREATE TABLE document_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,
   request_number VARCHAR(20) UNIQUE NOT NULL,
   user_id INT NOT NULL,
-  document_type ENUM(
-    'gugatan_cerai', 'perubahan_nama', 'perwalian',
-    'penetapan_kematian', 'pengampuan', 'adopsi', 'lainnya'
-  ) NOT NULL,
+  document_type VARCHAR(100) NOT NULL,
   applicant_data JSON,
   case_chronology TEXT NOT NULL,
+  applicant_files JSON COMMENT 'Lampiran dari pemohon',
   status ENUM('submitted', 'drafting', 'review', 'approved', 'completed', 'rejected') DEFAULT 'submitted',
-  draft_file VARCHAR(255),
+  draft_file VARCHAR(255) COMMENT 'Lampiran hasil dokumen dari petugas',
   staff_notes TEXT,
   assigned_to INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -186,6 +208,20 @@ INSERT INTO knowledge_base (title, category, keywords, content, is_active) VALUE
  'Pencatatan nikah di KUA gratis. Akta nikah sesuai tarif daerah. Posbakum konsultasi gratis prosedur perkawinan dan perceraian.', 1),
 ('Bantuan Hukum Prodeo', 'prodeo', 'prodeo,bantuan,hukum,gratis,tidak mampu',
  'Prodeo untuk yang tidak mampu (SKTM), perkara pidana/perdata tertentu. Syarat: SKTM lurah/kades, KTP, berkas perkara. Posbakum PN bantu permohonan.', 1);
+
+-- Layanan catalog samples
+INSERT INTO layanan_catalog (name, slug, layanan_group, description, sort_order) VALUES
+('Konsultasi Online', 'konsultasi', 'layanan_1', 'Chat/formulir dengan petugas Posbakum', 1),
+('Informasi Prosedur', 'informasi', 'layanan_1', 'Tahapan berperkara, syarat dokumen, biaya', 2),
+('Advis Hukum', 'advis', 'layanan_1', 'Analisis awal posisi hukum pemohon', 3),
+('Informasi Perkara', 'perkara', 'layanan_1', 'Cek posisi perkara Anda', 4),
+('Gugatan Cerai', 'gugatan_cerai', 'layanan_2', 'Cerai talak / cerai gugat', 1),
+('Perubahan Nama', 'perubahan_nama', 'layanan_2', 'Perbaikan penulisan di KK, KTP, Akta', 2),
+('Perwalian', 'perwalian', 'layanan_2', 'Perlindungan anak dan disabilitas', 3),
+('Penetapan Kematian', 'penetapan_kematian', 'layanan_2', 'Akta kematian', 4),
+('Pengampuan', 'pengampuan', 'layanan_2', 'Pengampuan warga', 5),
+('Adopsi', 'adopsi', 'layanan_2', 'Pengangkatan anak', 6),
+('Dokumen Lainnya', 'lainnya', 'layanan_2', 'Jenis permohonan lainnya', 7);
 
 -- Sample OBH
 INSERT INTO obh_organizations (name, accreditation_no, address, city, province, phone, email, coverage_areas, case_types, is_partner, is_active) VALUES

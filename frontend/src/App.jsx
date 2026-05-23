@@ -25,6 +25,8 @@ import AdminDocumentsPage from '@/pages/admin/AdminDocumentsPage';
 import AdminOBHPage from '@/pages/admin/AdminOBHPage';
 import AdminAnalyticsPage from '@/pages/admin/AdminAnalyticsPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
+import AdminLayananPage from '@/pages/admin/AdminLayananPage';
+import AdminSettingsPage from '@/pages/admin/AdminSettingsPage';
 import AdminNotificationsPage from '@/pages/admin/AdminNotificationsPage';
 
 export default function App() {
@@ -52,6 +54,8 @@ export default function App() {
             <Route path="tickets" element={<AdminTicketsPage />} />
             <Route path="tickets/:id" element={<AdminTicketDetailPage />} />
             <Route path="knowledge-base" element={<AdminKnowledgeBasePage />} />
+            <Route path="layanan" element={<AdminLayananPage />} />
+            <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="documents" element={<AdminDocumentsPage />} />
             <Route path="obh" element={<AdminOBHPage />} />
             <Route path="analytics" element={<AdminAnalyticsPage />} />

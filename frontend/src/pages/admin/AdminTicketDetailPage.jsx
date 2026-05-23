@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Send } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Send, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
@@ -10,6 +10,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function AdminTicketDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [ticket, setTicket] = useState(null);
   const [reply, setReply] = useState('');
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,27 @@ export default function AdminTicketDetailPage() {
     }
   };
 
+  const handleDelete = () => {
+    toast((t) => (
+      <span className="flex flex-col gap-2">
+        Hapus tiket ini secara permanen?
+        <span className="flex gap-2">
+          <button onClick={async () => {
+            try {
+              await api.delete(API_ENDPOINTS.TICKETS.DELETE(id));
+              toast.dismiss(t.id);
+              toast.success('Tiket dihapus');
+              navigate('/admin/tickets');
+            } catch (err) {
+              toast.error(err.response?.data?.message || 'Gagal menghapus');
+            }
+          }} className="btn-danger text-xs !py-1">Ya, Hapus</button>
+          <button onClick={() => toast.dismiss(t.id)} className="btn-secondary text-xs !py-1">Batal</button>
+        </span>
+      </span>
+    ), { duration: 10000 });
+  };
+
   if (loading) return <LoadingSpinner />;
   if (!ticket) return <p>Tiket tidak ditemukan</p>;
 
@@ -68,6 +90,11 @@ export default function AdminTicketDetailPage() {
               {s.replace('_', ' ')}
             </button>
           ))}
+          {ticket.status === 'closed' && (
+            <button onClick={handleDelete} className="btn-danger text-xs inline-flex items-center gap-1">
+              <Trash2 size={14} /> Hapus Tiket
+            </button>
+          )}
         </div>
       </div>
 

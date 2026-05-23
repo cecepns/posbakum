@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, FileText, Building2, Search, Clock, Star, Shield, ArrowRight } from 'lucide-react';
+import { MessageSquare, FileText, Building2, Search, Clock, Star, Shield, ArrowRight, MessageCircle, Video } from 'lucide-react';
+import { api } from '@/utils/api';
+import { API_ENDPOINTS } from '@/utils/endpoints';
 import berakhlakImg from '@/assets/berakhlak.jpeg';
 import menpisoptimaImg from '@/assets/menpisoptima.jpeg';
 
@@ -13,6 +16,14 @@ const features = [
 ];
 
 export default function HomePage() {
+  const [contact, setContact] = useState({ wa_link: '', zoom_link: '' });
+
+  useEffect(() => {
+    api.get(API_ENDPOINTS.SETTINGS.GET)
+      .then((res) => setContact(res.data.data))
+      .catch(() => {});
+  }, []);
+
   return (
     <div>
       <section className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 text-white">
@@ -24,12 +35,28 @@ export default function HomePage() {
             </h1>
             <p className="mt-2 text-lg text-gold-300 md:text-xl">Sahabat Masyarakat Dalam Bantuan Hukum Terpercaya</p>
             <p className="mt-4 text-primary-100 md:text-lg">
-              Konsultasi hukum gratis, tracking tiket, jawaban otomatis, dan bantuan dokumen — langsung dari browser HP Anda tanpa perlu install aplikasi.
+              Konsultasi hukum gratis, tracking tiket, jawaban otomatis, dan bantuan dokumen langsung dari browser HP Anda tanpa perlu install aplikasi.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/konsultasi" className="btn-primary !bg-gold-500 !text-primary-900 hover:!bg-gold-400">Ajukan Konsultasi</Link>
               <Link to="/tracking" className="btn-header-outline">Lacak Tiket</Link>
             </div>
+            {(contact.wa_link || contact.zoom_link) && (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {contact.wa_link && (
+                  <a href={contact.wa_link} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-500">
+                    <MessageCircle size={18} /> WhatsApp
+                  </a>
+                )}
+                {contact.zoom_link && (
+                  <a href={contact.zoom_link} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500">
+                    <Video size={18} /> Video Call
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -107,6 +134,9 @@ export default function HomePage() {
             alt="MenpimOptima - Optimalkan Pembelajaran Interaktif, Menyenangkan, dan Adaptif"
             className="mt-2 h-12 w-auto object-contain md:h-14"
           />
+          <p className="mt-4 text-sm text-slate-500">
+            Dikembangkan oleh <span className="font-medium text-slate-700">Imanuel Bambang Nugroho</span>
+          </p>
         </div>
       </section>
     </div>

@@ -10,7 +10,18 @@ export const API_ENDPOINTS = {
     DETAIL: (id) => `/tickets/${id}`,
     REPLY: (id) => `/tickets/${id}/reply`,
     STATUS: (id) => `/tickets/${id}/status`,
+    DELETE: (id) => `/tickets/${id}`,
     TRACK: (num) => `/tickets/track/${num}`,
+  },
+  LAYANAN_CATALOG: {
+    LIST: '/layanan-catalog',
+    CREATE: '/layanan-catalog',
+    UPDATE: (id) => `/layanan-catalog/${id}`,
+    DELETE: (id) => `/layanan-catalog/${id}`,
+  },
+  SETTINGS: {
+    GET: '/settings',
+    UPDATE: '/settings',
   },
   KNOWLEDGE_BASE: {
     LIST: '/knowledge-base',
@@ -37,5 +48,8 @@ export const API_ENDPOINTS = {
     READ: (id) => `/notifications/${id}/read`,
   },
   ANALYTICS: { DASHBOARD: '/analytics/dashboard' },
-  USERS: { LIST: '/users' },
+  USERS: {
+    LIST: '/users',
+    PASSWORD: (id) => `/users/${id}/password`,
+  },
 };

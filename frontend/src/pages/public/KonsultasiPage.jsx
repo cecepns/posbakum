@@ -1,20 +1,27 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Send, Paperclip, MessageCircle, Video } from 'lucide-react';
+import { Send, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
 import { useAuth } from '@/context/AuthContext';
+import { useLayananCatalog } from '@/hooks/useLayananCatalog';
 import { SERVICE_TYPES } from '@/utils/format';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function KonsultasiPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { items: layananItems, loading: layananLoading } = useLayananCatalog('layanan_1');
   const [form, setForm] = useState({
-    subject: '', question: '', service_type: 'konsultasi', category: '', contact_method: 'form',
+    subject: '', question: '', service_type: 'konsultasi', category: '',
   });
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const serviceOptions = layananItems.length
+    ? layananItems.map((i) => ({ value: i.slug, label: i.name }))
+    : Object.entries(SERVICE_TYPES).map(([value, label]) => ({ value, label }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,9 +59,11 @@ export default function KonsultasiPage() {
       <form onSubmit={handleSubmit} className="card mt-6 space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium">Jenis Layanan</label>
-          <select className="input-field" value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })}>
-            {Object.entries(SERVICE_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          {layananLoading ? <LoadingSpinner /> : (
+            <select className="input-field" value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })}>
+              {serviceOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Kategori (opsional)</label>
@@ -69,22 +78,6 @@ export default function KonsultasiPage() {
           <label className="mb-1 block text-sm font-medium">Pertanyaan / Kronologi</label>
           <textarea className="input-field" rows={6} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} required
             placeholder="Jelaskan pertanyaan hukum Anda selengkap mungkin..." />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Metode Kontak</label>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { value: 'form', label: 'Formulir', icon: Send },
-              { value: 'chat', label: 'WhatsApp', icon: MessageCircle },
-              { value: 'video', label: 'Video Call', icon: Video },
-            ].map(({ value, label, icon: Icon }) => (
-              <label key={value} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 ${form.contact_method === value ? 'border-primary-500 bg-primary-50' : ''}`}>
-                <input type="radio" name="contact" value={value} checked={form.contact_method === value}
-                  onChange={(e) => setForm({ ...form, contact_method: e.target.value })} className="sr-only" />
-                <Icon size={16} /> {label}
-              </label>
-            ))}
-          </div>
         </div>
         <div>
           <label className="mb-1 flex items-center gap-2 text-sm font-medium"><Paperclip size={16} /> Lampiran (PDF/JPG, max 5 file)</label>

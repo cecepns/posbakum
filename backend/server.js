@@ -75,6 +75,30 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
+const superAdminMiddleware = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Hanya super admin yang dapat melakukan aksi ini' });
+  }
+  next();
+};
+
+const parseJsonField = (val, fallback = null) => {
+  if (!val) return fallback;
+  if (typeof val === 'object') return val;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return fallback;
+  }
+};
+
+const getSiteSettings = async () => {
+  const [rows] = await pool.query('SELECT setting_key, setting_value FROM site_settings');
+  const settings = { wa_number: process.env.WA_CONTACT || '6281234567890', zoom_link: process.env.ZOOM_LINK || 'https://zoom.us' };
+  for (const row of rows) settings[row.setting_key] = row.setting_value;
+  return settings;
+};
+
 const generateTicketNumber = () => {
   const date = new Date();
   const ymd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
@@ -117,6 +141,63 @@ const seedAdmin = async () => {
     `UPDATE users SET password = ? WHERE email IN ('admin@posbakum.local', 'petugas@posbakum.local')`,
     [hash]
   ).catch(() => {});
+};
+
+const ensureSchema = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS layanan_catalog (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      slug VARCHAR(100) NOT NULL UNIQUE,
+      layanan_group ENUM('layanan_1', 'layanan_2') NOT NULL,
+      description TEXT,
+      sort_order INT DEFAULT 0,
+      is_active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS site_settings (
+      setting_key VARCHAR(100) PRIMARY KEY,
+      setting_value TEXT,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `).catch(() => {});
+
+  await pool.query(
+    `INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES (?, ?), (?, ?)`,
+    ['wa_number', process.env.WA_CONTACT || '6281234567890', 'zoom_link', process.env.ZOOM_LINK || 'https://zoom.us']
+  ).catch(() => {});
+
+  const [cols] = await pool.query(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'document_requests' AND COLUMN_NAME = 'applicant_files'`
+  ).catch(() => [[]]);
+  if (!cols.length) {
+    await pool.query('ALTER TABLE document_requests ADD COLUMN applicant_files JSON NULL').catch(() => {});
+  }
+
+  const seeds = [
+    ['Konsultasi Online', 'konsultasi', 'layanan_1', 'Chat/formulir dengan petugas Posbakum', 1],
+    ['Informasi Prosedur', 'informasi', 'layanan_1', 'Tahapan berperkara, syarat dokumen, biaya', 2],
+    ['Advis Hukum', 'advis', 'layanan_1', 'Analisis awal posisi hukum pemohon', 3],
+    ['Informasi Perkara', 'perkara', 'layanan_1', 'Cek posisi perkara Anda', 4],
+    ['Gugatan Cerai', 'gugatan_cerai', 'layanan_2', 'Cerai talak / cerai gugat', 1],
+    ['Perubahan Nama', 'perubahan_nama', 'layanan_2', 'Perbaikan penulisan di KK, KTP, Akta', 2],
+    ['Perwalian', 'perwalian', 'layanan_2', 'Perlindungan anak dan disabilitas', 3],
+    ['Penetapan Kematian', 'penetapan_kematian', 'layanan_2', 'Akta kematian', 4],
+    ['Pengampuan', 'pengampuan', 'layanan_2', 'Pengampuan warga', 5],
+    ['Adopsi', 'adopsi', 'layanan_2', 'Pengangkatan anak', 6],
+    ['Dokumen Lainnya', 'lainnya', 'layanan_2', 'Jenis permohonan lainnya', 7],
+  ];
+  for (const row of seeds) {
+    await pool.query(
+      'INSERT IGNORE INTO layanan_catalog (name, slug, layanan_group, description, sort_order) VALUES (?, ?, ?, ?, ?)',
+      row
+    ).catch(() => {});
+  }
 };
 
 // --- AUTH ---
@@ -264,6 +345,109 @@ app.delete('/api/knowledge-base/:id', authMiddleware, adminMiddleware, async (re
   }
 });
 
+// --- LAYANAN CATALOG ---
+app.get('/api/layanan-catalog', async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search = '', group = '', include_inactive = '' } = req.query;
+    const offset = (page - 1) * limit;
+    let where = include_inactive === 'true' ? 'WHERE 1=1' : 'WHERE is_active = 1';
+    const params = [];
+    if (group) {
+      where += ' AND layanan_group = ?';
+      params.push(group);
+    }
+    if (search) {
+      where += ' AND (name LIKE ? OR slug LIKE ? OR description LIKE ?)';
+      const s = `%${search}%`;
+      params.push(s, s, s);
+    }
+    const [countRows] = await pool.query(`SELECT COUNT(*) as total FROM layanan_catalog ${where}`, params);
+    const [rows] = await pool.query(
+      `SELECT * FROM layanan_catalog ${where} ORDER BY sort_order ASC, name ASC LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
+    res.json({ success: true, data: rows, pagination: paginate(page, limit, countRows[0].total) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/layanan-catalog', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, slug, layanan_group, description, sort_order = 0, is_active = 1 } = req.body;
+    if (!name || !slug || !layanan_group) {
+      return res.status(400).json({ success: false, message: 'Nama, slug, dan grup layanan wajib diisi' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO layanan_catalog (name, slug, layanan_group, description, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)',
+      [sanitize(name), sanitize(slug), layanan_group, sanitize(description), Number(sort_order), is_active ? 1 : 0]
+    );
+    res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Jenis layanan ditambahkan' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/layanan-catalog/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, slug, layanan_group, description, sort_order, is_active } = req.body;
+    await pool.query(
+      'UPDATE layanan_catalog SET name=?, slug=?, layanan_group=?, description=?, sort_order=?, is_active=? WHERE id=?',
+      [sanitize(name), sanitize(slug), layanan_group, sanitize(description), Number(sort_order) || 0, is_active ? 1 : 0, req.params.id]
+    );
+    res.json({ success: true, message: 'Jenis layanan diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete('/api/layanan-catalog/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('UPDATE layanan_catalog SET is_active = 0 WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Jenis layanan dinonaktifkan' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- SITE SETTINGS ---
+app.get('/api/settings', async (req, res) => {
+  try {
+    const settings = await getSiteSettings();
+    res.json({
+      success: true,
+      data: {
+        wa_number: settings.wa_number,
+        zoom_link: settings.zoom_link,
+        wa_link: `https://wa.me/${String(settings.wa_number).replace(/\D/g, '')}?text=${encodeURIComponent('Halo Posbakum, saya ingin konsultasi hukum')}`,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/settings', authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const { wa_number, zoom_link } = req.body;
+    if (wa_number !== undefined) {
+      await pool.query(
+        'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+        ['wa_number', sanitize(wa_number), sanitize(wa_number)]
+      );
+    }
+    if (zoom_link !== undefined) {
+      await pool.query(
+        'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+        ['zoom_link', sanitize(zoom_link), sanitize(zoom_link)]
+      );
+    }
+    res.json({ success: true, message: 'Pengaturan disimpan' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // --- TICKETS ---
 app.post('/api/tickets', authMiddleware, upload.array('files', 5), async (req, res) => {
   const conn = await pool.getConnection();
@@ -275,15 +459,16 @@ app.post('/api/tickets', authMiddleware, upload.array('files', 5), async (req, r
     }
 
     const ticketNumber = generateTicketNumber();
-    const waContact = process.env.WA_CONTACT || '6281234567890';
+    const settings = await getSiteSettings();
+    const waContact = String(settings.wa_number || '').replace(/\D/g, '') || '6281234567890';
     const waLink = `https://wa.me/${waContact}?text=${encodeURIComponent(`Halo Posbakum, tiket ${ticketNumber}`)}`;
-    const zoomLink = process.env.ZOOM_LINK || 'https://zoom.us';
+    const zoomLink = settings.zoom_link || 'https://zoom.us';
 
     const [result] = await conn.query(
       `INSERT INTO tickets (ticket_number, user_id, service_type, category, subject, question, contact_method, wa_link, zoom_link)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [ticketNumber, req.user.id, service_type || 'konsultasi', sanitize(category), sanitize(subject), sanitize(question),
-        contact_method || 'form', waLink, zoomLink]
+        'form', waLink, zoomLink]
     );
     const ticketId = result.insertId;
 
@@ -512,6 +697,25 @@ app.patch('/api/tickets/:id/status', authMiddleware, adminMiddleware, async (req
   }
 });
 
+app.delete('/api/tickets/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Tiket tidak ditemukan' });
+    if (rows[0].status !== 'closed') {
+      return res.status(400).json({ success: false, message: 'Hanya tiket berstatus selesai yang dapat dihapus' });
+    }
+    const [attachments] = await pool.query('SELECT filename FROM ticket_attachments WHERE ticket_id = ?', [req.params.id]);
+    await pool.query('DELETE FROM tickets WHERE id = ?', [req.params.id]);
+    for (const att of attachments) {
+      const filePath = path.join(uploadDir, att.filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    res.json({ success: true, message: 'Tiket dihapus' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // --- FEEDBACK ---
 app.post('/api/feedback', authMiddleware, async (req, res) => {
   try {
@@ -538,16 +742,25 @@ app.post('/api/feedback', authMiddleware, async (req, res) => {
 });
 
 // --- DOCUMENT REQUESTS ---
-app.post('/api/documents', authMiddleware, async (req, res) => {
+app.post('/api/documents', authMiddleware, upload.array('files', 5), async (req, res) => {
   try {
-    const { document_type, applicant_data, case_chronology } = req.body;
+    const document_type = req.body.document_type;
+    const applicant_data = parseJsonField(req.body.applicant_data, {});
+    const case_chronology = req.body.case_chronology;
     if (!document_type || !case_chronology) {
-      return res.status(400).json({ success: false, message: 'Jenis dokumen dan kronologi wajib diisi' });
+      return res.status(400).json({ success: false, message: 'Jenis permohonan dan kronologi wajib diisi' });
     }
+    const applicantFiles = (req.files || []).map((f) => ({
+      filename: f.filename,
+      original_name: f.originalname,
+      file_size: f.size,
+      mime_type: f.mimetype,
+    }));
     const requestNumber = generateRequestNumber();
     const [result] = await pool.query(
-      'INSERT INTO document_requests (request_number, user_id, document_type, applicant_data, case_chronology) VALUES (?, ?, ?, ?, ?)',
-      [requestNumber, req.user.id, document_type, JSON.stringify(applicant_data || {}), sanitize(case_chronology)]
+      'INSERT INTO document_requests (request_number, user_id, document_type, applicant_data, case_chronology, applicant_files) VALUES (?, ?, ?, ?, ?, ?)',
+      [requestNumber, req.user.id, document_type, JSON.stringify(applicant_data || {}), sanitize(case_chronology),
+        applicantFiles.length ? JSON.stringify(applicantFiles) : null]
     );
 
     const [staffUsers] = await pool.query("SELECT id FROM users WHERE role IN ('admin','staff')");
@@ -593,19 +806,48 @@ app.get('/api/documents', authMiddleware, async (req, res) => {
       [...params, Number(limit), Number(offset)]
     );
 
-    res.json({ success: true, data: rows, pagination: paginate(page, limit, countRows[0].total) });
+    const data = rows.map((row) => ({
+      ...row,
+      applicant_data: parseJsonField(row.applicant_data, {}),
+      applicant_files: parseJsonField(row.applicant_files, []),
+    }));
+
+    res.json({ success: true, data, pagination: paginate(page, limit, countRows[0].total) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-app.patch('/api/documents/:id', authMiddleware, adminMiddleware, async (req, res) => {
+app.patch('/api/documents/:id', authMiddleware, adminMiddleware, upload.single('draft_file'), async (req, res) => {
   try {
     const { status, staff_notes, assigned_to } = req.body;
-    await pool.query(
-      'UPDATE document_requests SET status=?, staff_notes=?, assigned_to=? WHERE id=?',
-      [status, sanitize(staff_notes), assigned_to, req.params.id]
-    );
+    const updates = [];
+    const params = [];
+    if (status !== undefined) { updates.push('status = ?'); params.push(status); }
+    if (staff_notes !== undefined) { updates.push('staff_notes = ?'); params.push(sanitize(staff_notes)); }
+    if (assigned_to !== undefined) { updates.push('assigned_to = ?'); params.push(assigned_to || null); }
+    if (req.file) {
+      const [existing] = await pool.query('SELECT draft_file FROM document_requests WHERE id = ?', [req.params.id]);
+      if (existing[0]?.draft_file) {
+        const oldPath = path.join(uploadDir, existing[0].draft_file);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+      updates.push('draft_file = ?');
+      params.push(req.file.filename);
+    }
+    if (updates.length) {
+      params.push(req.params.id);
+      await pool.query(`UPDATE document_requests SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+
+    const [doc] = await pool.query('SELECT * FROM document_requests WHERE id = ?', [req.params.id]);
+    if (doc.length && status === 'completed') {
+      await pool.query(
+        'INSERT INTO notifications (user_id, title, message, type, reference_id, reference_type) VALUES (?, ?, ?, ?, ?, ?)',
+        [doc[0].user_id, 'Dokumen Siap Diunduh', `Permohonan ${doc[0].request_number} selesai. Lampiran dokumen tersedia.`, 'document_completed', doc[0].id, 'document']
+      );
+    }
+
     res.json({ success: true, message: 'Permohonan dokumen diperbarui' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -794,6 +1036,25 @@ app.get('/api/analytics/dashboard', authMiddleware, adminMiddleware, async (req,
 });
 
 // --- USERS (admin) ---
+app.patch('/api/users/:id/password', authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password minimal 6 karakter' });
+    }
+    const [target] = await pool.query('SELECT id, role FROM users WHERE id = ?', [req.params.id]);
+    if (!target.length) return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan' });
+    if (target[0].role === 'admin' && Number(req.params.id) !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Tidak dapat mengubah password admin lain' });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashed, req.params.id]);
+    res.json({ success: true, message: 'Password berhasil diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', role = '' } = req.query;
@@ -834,6 +1095,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, async () => {
   try {
+    await ensureSchema();
     await seedAdmin();
     console.log(`Posbakum SAMBAT API running on http://localhost:${PORT}`);
   } catch (e) {
