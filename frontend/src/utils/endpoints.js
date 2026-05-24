@@ -42,6 +42,13 @@ export const API_ENDPOINTS = {
     UPDATE: (id) => `/obh/${id}`,
     DELETE: (id) => `/obh/${id}`,
   },
+  MAP_LOCATIONS: {
+    PUBLIC: '/map-locations/public',
+    LIST: '/map-locations',
+    CREATE: '/map-locations',
+    UPDATE: (id) => `/map-locations/${id}`,
+    DELETE: (id) => `/map-locations/${id}`,
+  },
   NOTIFICATIONS: {
     LIST: '/notifications',
     READ_ALL: '/notifications/read-all',

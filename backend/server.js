@@ -198,6 +198,43 @@ const ensureSchema = async () => {
       row
     ).catch(() => {});
   }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS map_locations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      location_type VARCHAR(100) DEFAULT 'pengadilan',
+      address TEXT,
+      latitude DECIMAL(10, 8) NOT NULL,
+      longitude DECIMAL(11, 8) NOT NULL,
+      distance_km DECIMAL(8, 2) NULL,
+      distance_info VARCHAR(255) NULL,
+      case_type VARCHAR(150) NULL,
+      case_fee VARCHAR(255) NOT NULL,
+      fee_notes TEXT NULL,
+      description TEXT NULL,
+      sort_order INT DEFAULT 0,
+      is_active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `).catch(() => {});
+
+  const mapSeeds = [
+    ['Posbakum PN Pekalongan', 'posbakum', 'Kompleks Pengadilan Negeri Pekalongan', -6.8886, 109.675, 0, 'Lokasi referensi layanan', 'Semua perkara', 'Gratis (SKTM)', 'Bantuan hukum gratis bagi yang tidak mampu dengan SKTM dari kelurahan/desa.', 'Titik layanan Posbakum di Pengadilan Negeri Pekalongan.', 1],
+    ['Pengadilan Negeri Pekalongan', 'pengadilan', 'Jl. Merdeka, Pekalongan', -6.8892, 109.6765, 0.5, '±500 m dari Posbakum', 'Perdata & Pidana Umum', 'Sesuai PERMA / SK biaya', 'Biaya perkara mengikuti ketentuan Mahkamah Agung.', 'Pengadilan tingkat pertama untuk wilayah Pekalongan.', 2],
+    ['Pengadilan Agama Pekalongan', 'pengadilan', 'Pekalongan', -6.901, 109.662, 2.5, '±2,5 km dari Posbakum', 'Cerai Talak & Perkara Agama', 'Sesuai PERMA PA', 'Cerai talak dan perkara di bawah kewenangan PA.', 'Klik marker untuk detail jarak dan tarif.', 3],
+  ];
+  for (const row of mapSeeds) {
+    const [exists] = await pool.query('SELECT id FROM map_locations WHERE name = ? LIMIT 1', [row[0]]).catch(() => [[]]);
+    if (!exists?.length) {
+      await pool.query(
+        `INSERT INTO map_locations (name, location_type, address, latitude, longitude, distance_km, distance_info, case_type, case_fee, fee_notes, description, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        row
+      ).catch(() => {});
+    }
+  }
 };
 
 // --- AUTH ---
@@ -923,6 +960,113 @@ app.delete('/api/obh/:id', authMiddleware, adminMiddleware, async (req, res) => 
   try {
     await pool.query('UPDATE obh_organizations SET is_active = 0 WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'OBH dinonaktifkan' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- MAP LOCATIONS (GIS) ---
+const parseMapLocationBody = (body) => {
+  const lat = Number(body.latitude);
+  const lng = Number(body.longitude);
+  if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { error: 'Koordinat latitude/longitude tidak valid' };
+  }
+  if (!body.name?.trim()) return { error: 'Nama lokasi wajib diisi' };
+  if (!body.case_fee?.trim()) return { error: 'Tarif biaya perkara wajib diisi' };
+  return {
+    name: sanitize(body.name),
+    location_type: sanitize(body.location_type || 'pengadilan'),
+    address: sanitize(body.address || ''),
+    latitude: lat,
+    longitude: lng,
+    distance_km: body.distance_km === '' || body.distance_km == null ? null : Number(body.distance_km),
+    distance_info: sanitize(body.distance_info || ''),
+    case_type: sanitize(body.case_type || ''),
+    case_fee: sanitize(body.case_fee),
+    fee_notes: sanitize(body.fee_notes || ''),
+    description: sanitize(body.description || ''),
+    sort_order: Number(body.sort_order) || 0,
+    is_active: body.is_active === 0 || body.is_active === false ? 0 : 1,
+  };
+};
+
+app.get('/api/map-locations/public', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, name, location_type, address, latitude, longitude, distance_km, distance_info,
+              case_type, case_fee, fee_notes, description, sort_order
+       FROM map_locations WHERE is_active = 1 ORDER BY sort_order ASC, name ASC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/map-locations', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '' } = req.query;
+    const offset = (page - 1) * limit;
+    let where = 'WHERE 1=1';
+    const params = [];
+    if (search) {
+      where += ' AND (name LIKE ? OR address LIKE ? OR case_type LIKE ? OR case_fee LIKE ?)';
+      const s = `%${search}%`;
+      params.push(s, s, s, s);
+    }
+    const [countRows] = await pool.query(`SELECT COUNT(*) as total FROM map_locations ${where}`, params);
+    const [rows] = await pool.query(
+      `SELECT * FROM map_locations ${where} ORDER BY sort_order ASC, name ASC LIMIT ? OFFSET ?`,
+      [...params, Number(limit), Number(offset)]
+    );
+    res.json({ success: true, data: rows, pagination: paginate(page, limit, countRows[0].total) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/map-locations', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const parsed = parseMapLocationBody(req.body);
+    if (parsed.error) return res.status(400).json({ success: false, message: parsed.error });
+    const [result] = await pool.query(
+      `INSERT INTO map_locations (name, location_type, address, latitude, longitude, distance_km, distance_info,
+        case_type, case_fee, fee_notes, description, sort_order, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [parsed.name, parsed.location_type, parsed.address, parsed.latitude, parsed.longitude,
+        parsed.distance_km, parsed.distance_info, parsed.case_type, parsed.case_fee, parsed.fee_notes,
+        parsed.description, parsed.sort_order, parsed.is_active]
+    );
+    res.status(201).json({ success: true, data: { id: result.insertId } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/map-locations/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const parsed = parseMapLocationBody(req.body);
+    if (parsed.error) return res.status(400).json({ success: false, message: parsed.error });
+    const [rows] = await pool.query('SELECT id FROM map_locations WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Lokasi tidak ditemukan' });
+    await pool.query(
+      `UPDATE map_locations SET name=?, location_type=?, address=?, latitude=?, longitude=?, distance_km=?,
+        distance_info=?, case_type=?, case_fee=?, fee_notes=?, description=?, sort_order=?, is_active=? WHERE id=?`,
+      [parsed.name, parsed.location_type, parsed.address, parsed.latitude, parsed.longitude,
+        parsed.distance_km, parsed.distance_info, parsed.case_type, parsed.case_fee, parsed.fee_notes,
+        parsed.description, parsed.sort_order, parsed.is_active, req.params.id]
+    );
+    res.json({ success: true, message: 'Lokasi peta diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete('/api/map-locations/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('UPDATE map_locations SET is_active = 0 WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Lokasi dinonaktifkan' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

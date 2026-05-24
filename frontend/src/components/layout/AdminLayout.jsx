@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, BookOpen, FileText, Building2,
-  BarChart3, Bell, Menu, X, LogOut, Scale, Users, Layers, Settings,
+  BarChart3, Bell, Menu, X, LogOut, Scale, Users, Layers, Settings, Map,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +15,7 @@ const sidebarLinks = [
   { to: '/admin/layanan', icon: Layers, label: 'Jenis Layanan' },
   { to: '/admin/documents', icon: FileText, label: 'Permohonan Dokumen' },
   { to: '/admin/obh', icon: Building2, label: 'Direktori OBH' },
+  { to: '/admin/map-locations', icon: Map, label: 'Peta GIS' },
   { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/admin/users', icon: Users, label: 'Pengguna' },
   { to: '/admin/settings', icon: Settings, label: 'Pengaturan Kontak' },

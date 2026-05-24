@@ -23,6 +23,7 @@ import AdminTicketDetailPage from '@/pages/admin/AdminTicketDetailPage';
 import AdminKnowledgeBasePage from '@/pages/admin/AdminKnowledgeBasePage';
 import AdminDocumentsPage from '@/pages/admin/AdminDocumentsPage';
 import AdminOBHPage from '@/pages/admin/AdminOBHPage';
+import AdminMapLocationsPage from '@/pages/admin/AdminMapLocationsPage';
 import AdminAnalyticsPage from '@/pages/admin/AdminAnalyticsPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminLayananPage from '@/pages/admin/AdminLayananPage';
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="documents" element={<AdminDocumentsPage />} />
             <Route path="obh" element={<AdminOBHPage />} />
+            <Route path="map-locations" element={<AdminMapLocationsPage />} />
             <Route path="analytics" element={<AdminAnalyticsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />

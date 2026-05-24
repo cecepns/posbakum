@@ -5,6 +5,7 @@ import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
 import berakhlakImg from '@/assets/berakhlak.jpeg';
 import menpisoptimaImg from '@/assets/menpisoptima.jpeg';
+import HomeMapSection from '@/components/home/HomeMapSection';
 
 const features = [
   { icon: MessageSquare, title: 'Konsultasi Online', desc: 'Ajukan pertanyaan hukum, dapatkan jawaban dengan nomor tiket terlacak.', to: '/konsultasi', action: 'Ajukan Konsultasi' },
@@ -88,6 +89,8 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <HomeMapSection />
 
       <section className="bg-white py-12">
         <div className="mx-auto max-w-6xl px-4">

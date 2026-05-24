@@ -162,6 +162,26 @@ CREATE TABLE obh_organizations (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- GIS map locations (jarak & tarif biaya perkara)
+CREATE TABLE map_locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  location_type VARCHAR(100) DEFAULT 'pengadilan',
+  address TEXT,
+  latitude DECIMAL(10, 8) NOT NULL,
+  longitude DECIMAL(11, 8) NOT NULL,
+  distance_km DECIMAL(8, 2) NULL,
+  distance_info VARCHAR(255) NULL,
+  case_type VARCHAR(150) NULL,
+  case_fee VARCHAR(255) NOT NULL,
+  fee_notes TEXT NULL,
+  description TEXT NULL,
+  sort_order INT DEFAULT 0,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Notifications
 CREATE TABLE notifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -182,6 +202,7 @@ CREATE INDEX idx_tickets_status ON tickets(status);
 CREATE INDEX idx_tickets_number ON tickets(ticket_number);
 CREATE INDEX idx_kb_category ON knowledge_base(category);
 CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
+CREATE INDEX idx_map_locations_active ON map_locations(is_active, sort_order);
 
 -- Sample Admin (password: admin123)
 INSERT INTO users (nik, name, email, phone, password, role) VALUES
@@ -222,6 +243,12 @@ INSERT INTO layanan_catalog (name, slug, layanan_group, description, sort_order)
 ('Pengampuan', 'pengampuan', 'layanan_2', 'Pengampuan warga', 5),
 ('Adopsi', 'adopsi', 'layanan_2', 'Pengangkatan anak', 6),
 ('Dokumen Lainnya', 'lainnya', 'layanan_2', 'Jenis permohonan lainnya', 7);
+
+-- Sample map locations (GIS)
+INSERT INTO map_locations (name, location_type, address, latitude, longitude, distance_km, distance_info, case_type, case_fee, fee_notes, description, sort_order, is_active) VALUES
+('Posbakum PN Pekalongan', 'posbakum', 'Kompleks Pengadilan Negeri Pekalongan', -6.88860000, 109.67500000, 0.00, 'Lokasi referensi layanan', 'Semua perkara', 'Gratis (SKTM)', 'Bantuan hukum gratis bagi yang tidak mampu dengan SKTM dari kelurahan/desa.', 'Titik layanan Posbakum di Pengadilan Negeri Pekalongan.', 1, 1),
+('Pengadilan Negeri Pekalongan', 'pengadilan', 'Jl. Merdeka, Pekalongan', -6.88920000, 109.67650000, 0.50, '±500 m dari Posbakum', 'Perdata & Pidana Umum', 'Sesuai PERMA / SK biaya', 'Biaya perkara mengikuti ketentuan Mahkamah Agung.', 'Pengadilan tingkat pertama untuk wilayah Pekalongan.', 2, 1),
+('Pengadilan Agama Pekalongan', 'pengadilan', 'Pekalongan', -6.90100000, 109.66200000, 2.50, '±2,5 km dari Posbakum', 'Cerai Talak & Perkara Agama', 'Sesuai PERMA PA', 'Cerai talak dan perkara di bawah kewenangan PA.', 'Klik marker untuk detail jarak dan tarif.', 3, 1);
 
 -- Sample OBH
 INSERT INTO obh_organizations (name, accreditation_no, address, city, province, phone, email, coverage_areas, case_types, is_partner, is_active) VALUES

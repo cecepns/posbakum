@@ -14,6 +14,7 @@ Aplikasi konsultasi hukum online dengan ticketing system, knowledge base auto-re
 - Rating & feedback setelah konsultasi selesai
 - Permohonan bantuan dokumen hukum
 - Direktori OBH terakreditasi
+- Peta GIS di beranda (jarak & tarif biaya perkara, Leaflet + OpenStreetMap)
 - Integrasi WhatsApp & Zoom link
 
 ### Admin/Petugas (Dashboard PC)
@@ -22,6 +23,7 @@ Aplikasi konsultasi hukum online dengan ticketing system, knowledge base auto-re
 - CRUD Knowledge Base templates
 - Manajemen permohonan dokumen
 - Direktori OBH
+- Peta GIS — kelola titik lokasi, jarak, dan tarif perkara
 - Analytics & laporan kinerja (IKM, auto-reply rate, waktu respon)
 - Manajemen pengguna
 
