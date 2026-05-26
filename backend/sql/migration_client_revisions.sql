@@ -24,7 +24,9 @@ INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES
 ('zoom_link', 'https://zoom.us/j/posbakum');
 
 ALTER TABLE document_requests MODIFY document_type VARCHAR(100) NOT NULL;
--- Run only if column missing: ALTER TABLE document_requests ADD COLUMN applicant_files JSON NULL AFTER case_chronology;
+ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS applicant_files JSON NULL COMMENT 'Lampiran dari pemohon' AFTER case_chronology;
+
+INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES ('sk_decree_number', '');
 
 ALTER TABLE tickets
   MODIFY service_type VARCHAR(100) DEFAULT 'konsultasi';

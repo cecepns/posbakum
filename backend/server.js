@@ -94,9 +94,41 @@ const parseJsonField = (val, fallback = null) => {
 
 const getSiteSettings = async () => {
   const [rows] = await pool.query('SELECT setting_key, setting_value FROM site_settings');
-  const settings = { wa_number: process.env.WA_CONTACT || '6281234567890', zoom_link: process.env.ZOOM_LINK || 'https://zoom.us' };
+  const settings = {
+    wa_number: process.env.WA_CONTACT || '6281234567890',
+    zoom_link: process.env.ZOOM_LINK || 'https://zoom.us',
+    sk_decree_number: '',
+  };
   for (const row of rows) settings[row.setting_key] = row.setting_value;
   return settings;
+};
+
+let hasApplicantFilesColumn = null;
+const ensureApplicantFilesColumn = async () => {
+  if (hasApplicantFilesColumn === true) return true;
+  try {
+    const [cols] = await pool.query('SHOW COLUMNS FROM document_requests LIKE ?', ['applicant_files']);
+    if (cols.length) {
+      hasApplicantFilesColumn = true;
+      return true;
+    }
+    await pool.query('ALTER TABLE document_requests ADD COLUMN applicant_files JSON NULL');
+    hasApplicantFilesColumn = true;
+    return true;
+  } catch (err) {
+    console.warn('document_requests.applicant_files migration:', err.message);
+    hasApplicantFilesColumn = false;
+    return false;
+  }
+};
+
+const DOC_STATUS_LABELS = {
+  submitted: 'Diajukan',
+  drafting: 'Sedang disusun',
+  review: 'Dalam review',
+  approved: 'Disetujui',
+  completed: 'Selesai',
+  rejected: 'Ditolak',
 };
 
 const generateTicketNumber = () => {
@@ -167,17 +199,15 @@ const ensureSchema = async () => {
   `).catch(() => {});
 
   await pool.query(
-    `INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES (?, ?), (?, ?)`,
-    ['wa_number', process.env.WA_CONTACT || '6281234567890', 'zoom_link', process.env.ZOOM_LINK || 'https://zoom.us']
+    `INSERT IGNORE INTO site_settings (setting_key, setting_value) VALUES (?, ?), (?, ?), (?, ?)`,
+    [
+      'wa_number', process.env.WA_CONTACT || '6281234567890',
+      'zoom_link', process.env.ZOOM_LINK || 'https://zoom.us',
+      'sk_decree_number', '',
+    ]
   ).catch(() => {});
 
-  const [cols] = await pool.query(
-    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'document_requests' AND COLUMN_NAME = 'applicant_files'`
-  ).catch(() => [[]]);
-  if (!cols.length) {
-    await pool.query('ALTER TABLE document_requests ADD COLUMN applicant_files JSON NULL').catch(() => {});
-  }
+  await ensureApplicantFilesColumn();
 
   const seeds = [
     ['Konsultasi Online', 'konsultasi', 'layanan_1', 'Chat/formulir dengan petugas Posbakum', 1],
@@ -456,6 +486,7 @@ app.get('/api/settings', async (req, res) => {
       data: {
         wa_number: settings.wa_number,
         zoom_link: settings.zoom_link,
+        sk_decree_number: settings.sk_decree_number || '',
         wa_link: `https://wa.me/${String(settings.wa_number).replace(/\D/g, '')}?text=${encodeURIComponent('Halo Posbakum, saya ingin konsultasi hukum')}`,
       },
     });
@@ -466,7 +497,7 @@ app.get('/api/settings', async (req, res) => {
 
 app.put('/api/settings', authMiddleware, superAdminMiddleware, async (req, res) => {
   try {
-    const { wa_number, zoom_link } = req.body;
+    const { wa_number, zoom_link, sk_decree_number } = req.body;
     if (wa_number !== undefined) {
       await pool.query(
         'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
@@ -477,6 +508,12 @@ app.put('/api/settings', authMiddleware, superAdminMiddleware, async (req, res) 
       await pool.query(
         'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
         ['zoom_link', sanitize(zoom_link), sanitize(zoom_link)]
+      );
+    }
+    if (sk_decree_number !== undefined) {
+      await pool.query(
+        'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+        ['sk_decree_number', sanitize(sk_decree_number), sanitize(sk_decree_number)]
       );
     }
     res.json({ success: true, message: 'Pengaturan disimpan' });
@@ -794,11 +831,20 @@ app.post('/api/documents', authMiddleware, upload.array('files', 5), async (req,
       mime_type: f.mimetype,
     }));
     const requestNumber = generateRequestNumber();
-    const [result] = await pool.query(
-      'INSERT INTO document_requests (request_number, user_id, document_type, applicant_data, case_chronology, applicant_files) VALUES (?, ?, ?, ?, ?, ?)',
-      [requestNumber, req.user.id, document_type, JSON.stringify(applicant_data || {}), sanitize(case_chronology),
-        applicantFiles.length ? JSON.stringify(applicantFiles) : null]
-    );
+    const supportsApplicantFiles = await ensureApplicantFilesColumn();
+    let result;
+    if (supportsApplicantFiles) {
+      [result] = await pool.query(
+        'INSERT INTO document_requests (request_number, user_id, document_type, applicant_data, case_chronology, applicant_files) VALUES (?, ?, ?, ?, ?, ?)',
+        [requestNumber, req.user.id, document_type, JSON.stringify(applicant_data || {}), sanitize(case_chronology),
+          applicantFiles.length ? JSON.stringify(applicantFiles) : null]
+      );
+    } else {
+      [result] = await pool.query(
+        'INSERT INTO document_requests (request_number, user_id, document_type, applicant_data, case_chronology) VALUES (?, ?, ?, ?, ?)',
+        [requestNumber, req.user.id, document_type, JSON.stringify(applicant_data || {}), sanitize(case_chronology)]
+      );
+    }
 
     const [staffUsers] = await pool.query("SELECT id FROM users WHERE role IN ('admin','staff')");
     for (const staff of staffUsers) {
@@ -857,6 +903,12 @@ app.get('/api/documents', authMiddleware, async (req, res) => {
 
 app.patch('/api/documents/:id', authMiddleware, adminMiddleware, upload.single('draft_file'), async (req, res) => {
   try {
+    const [beforeRows] = await pool.query('SELECT * FROM document_requests WHERE id = ?', [req.params.id]);
+    if (!beforeRows.length) {
+      return res.status(404).json({ success: false, message: 'Permohonan tidak ditemukan' });
+    }
+    const before = beforeRows[0];
+
     const { status, staff_notes, assigned_to } = req.body;
     const updates = [];
     const params = [];
@@ -864,9 +916,8 @@ app.patch('/api/documents/:id', authMiddleware, adminMiddleware, upload.single('
     if (staff_notes !== undefined) { updates.push('staff_notes = ?'); params.push(sanitize(staff_notes)); }
     if (assigned_to !== undefined) { updates.push('assigned_to = ?'); params.push(assigned_to || null); }
     if (req.file) {
-      const [existing] = await pool.query('SELECT draft_file FROM document_requests WHERE id = ?', [req.params.id]);
-      if (existing[0]?.draft_file) {
-        const oldPath = path.join(uploadDir, existing[0].draft_file);
+      if (before.draft_file) {
+        const oldPath = path.join(uploadDir, before.draft_file);
         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
       updates.push('draft_file = ?');
@@ -878,10 +929,33 @@ app.patch('/api/documents/:id', authMiddleware, adminMiddleware, upload.single('
     }
 
     const [doc] = await pool.query('SELECT * FROM document_requests WHERE id = ?', [req.params.id]);
-    if (doc.length && status === 'completed') {
+    if (!doc.length) {
+      return res.json({ success: true, message: 'Permohonan dokumen diperbarui' });
+    }
+    const updated = doc[0];
+    const reqNo = updated.request_number;
+
+    if (staff_notes !== undefined && String(staff_notes || '').trim() && staff_notes !== before.staff_notes) {
       await pool.query(
         'INSERT INTO notifications (user_id, title, message, type, reference_id, reference_type) VALUES (?, ?, ?, ?, ?, ?)',
-        [doc[0].user_id, 'Dokumen Siap Diunduh', `Permohonan ${doc[0].request_number} selesai. Lampiran dokumen tersedia.`, 'document_completed', doc[0].id, 'document']
+        [updated.user_id, 'Balasan Permohonan Dokumen', `Permohonan ${reqNo}: ${sanitize(staff_notes).slice(0, 200)}`, 'document_reply', updated.id, 'document']
+      );
+    }
+
+    if (status !== undefined && status !== before.status) {
+      const statusLabel = DOC_STATUS_LABELS[status] || status;
+      const title = status === 'completed' ? 'Dokumen Siap Diunduh' : 'Status Permohonan Dokumen';
+      const message = status === 'completed'
+        ? `Permohonan ${reqNo} selesai. Lampiran dokumen tersedia di dashboard.`
+        : `Permohonan ${reqNo} diperbarui menjadi: ${statusLabel}`;
+      await pool.query(
+        'INSERT INTO notifications (user_id, title, message, type, reference_id, reference_type) VALUES (?, ?, ?, ?, ?, ?)',
+        [updated.user_id, title, message, `document_${status}`, updated.id, 'document']
+      );
+    } else if (req.file && !status) {
+      await pool.query(
+        'INSERT INTO notifications (user_id, title, message, type, reference_id, reference_type) VALUES (?, ?, ?, ?, ?, ?)',
+        [updated.user_id, 'Draf Dokumen Tersedia', `Permohonan ${reqNo}: admin mengunggah draf dokumen.`, 'document_draft', updated.id, 'document']
       );
     }
 

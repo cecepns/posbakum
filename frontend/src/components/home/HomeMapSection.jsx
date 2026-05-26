@@ -8,12 +8,19 @@ import InteractiveMap from '@/components/map/InteractiveMap';
 
 export default function HomeMapSection() {
   const [locations, setLocations] = useState([]);
+  const [skDecreeNumber, setSkDecreeNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.get(API_ENDPOINTS.MAP_LOCATIONS.PUBLIC)
-      .then((res) => setLocations(res.data.data || []))
+    Promise.all([
+      api.get(API_ENDPOINTS.MAP_LOCATIONS.PUBLIC),
+      api.get(API_ENDPOINTS.SETTINGS.GET),
+    ])
+      .then(([mapRes, settingsRes]) => {
+        setLocations(mapRes.data.data || []);
+        setSkDecreeNumber(settingsRes.data.data?.sk_decree_number || '');
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
@@ -23,10 +30,18 @@ export default function HomeMapSection() {
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex items-center justify-center gap-2">
           <Map className="h-7 w-7 text-primary-600" />
-          <h2 className="text-center text-2xl font-bold text-slate-900">Peta Jarak & Tarif Perkara</h2>
+          <h2 className="text-center text-2xl font-bold text-slate-900">
+            Biaya Panggilan/Pemberitahuan Berdasarkan Radius
+          </h2>
         </div>
         <p className="mt-2 text-center text-slate-500">
-          Klik titik pada peta untuk melihat informasi jarak dan tarif biaya perkara
+          Klik titik pada peta untuk melihat informasi jarak dan tarif biaya panggilan
+        </p>
+        <p className="mt-2 text-center text-sm text-slate-600">
+          Berdasarkan Surat Keputusan Nomor:{' '}
+          <span className="font-medium text-primary-800">
+            {skDecreeNumber || '—'}
+          </span>
         </p>
 
         <div className="mt-8">

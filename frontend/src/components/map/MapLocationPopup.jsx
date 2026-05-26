@@ -22,7 +22,7 @@ export default function MapLocationPopup({ location }) {
       )}
       <p className="mt-2 flex items-start gap-1.5 text-xs">
         <Scale size={14} className="mt-0.5 shrink-0 text-primary-600" />
-        <span><strong>Tarif biaya perkara:</strong> {location.case_fee}</span>
+        <span><strong>Biaya panggilan/pemberitahuan:</strong> {location.case_fee}</span>
       </p>
       {location.case_type && (
         <p className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-600">

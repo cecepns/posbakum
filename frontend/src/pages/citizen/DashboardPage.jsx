@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, FileText, Plus, Download } from 'lucide-react';
+import { Ticket, FileText, Plus, Download, Bell } from 'lucide-react';
 import { useLayananCatalog } from '@/hooks/useLayananCatalog';
 import { getUploadUrl } from '@/utils/config';
 import { DOC_TYPES } from '@/utils/format';
@@ -38,8 +38,15 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold">Dashboard Saya</h1>
-      <p className="text-slate-500">Selamat datang, {user.name}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard Saya</h1>
+          <p className="text-slate-500">Selamat datang, {user.name}</p>
+        </div>
+        <Link to="/dashboard/notifications" className="btn-secondary inline-flex items-center gap-2 text-sm">
+          <Bell size={16} /> Notifikasi
+        </Link>
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <Link to="/konsultasi" className="card flex items-center gap-3 hover:border-primary-300 transition">

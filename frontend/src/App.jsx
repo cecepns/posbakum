@@ -16,6 +16,7 @@ import DokumenPage from '@/pages/public/DokumenPage';
 
 import DashboardPage from '@/pages/citizen/DashboardPage';
 import TicketDetailPage from '@/pages/citizen/TicketDetailPage';
+import NotificationsPage from '@/pages/citizen/NotificationsPage';
 
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminTicketsPage from '@/pages/admin/AdminTicketsPage';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/dokumen" element={<DokumenPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard/notifications" element={<NotificationsPage />} />
             <Route path="/dashboard/tickets/:id" element={<TicketDetailPage />} />
           </Route>
 

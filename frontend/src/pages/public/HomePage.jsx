@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, FileText, Building2, Search, Clock, Star, Shield, ArrowRight, MessageCircle, Video } from 'lucide-react';
 import { api } from '@/utils/api';
 import { API_ENDPOINTS } from '@/utils/endpoints';
+import { useAuth } from '@/context/AuthContext';
 import berakhlakImg from '@/assets/berakhlak.jpeg';
 import menpisoptimaImg from '@/assets/menpisoptima.jpeg';
 import HomeMapSection from '@/components/home/HomeMapSection';
@@ -17,6 +18,7 @@ const features = [
 ];
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [contact, setContact] = useState({ wa_link: '', zoom_link: '' });
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function HomePage() {
               <Link to="/konsultasi" className="btn-primary !bg-gold-500 !text-primary-900 hover:!bg-gold-400">Ajukan Konsultasi</Link>
               <Link to="/tracking" className="btn-header-outline">Lacak Tiket</Link>
             </div>
-            {(contact.wa_link || contact.zoom_link) && (
+            {user && (contact.wa_link || contact.zoom_link) && (
               <div className="mt-6 flex flex-wrap gap-3">
                 {contact.wa_link && (
                   <a href={contact.wa_link} target="_blank" rel="noreferrer"
@@ -90,8 +92,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <HomeMapSection />
-
       <section className="bg-white py-12">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center text-2xl font-bold text-slate-900">Fitur Unggulan</h2>
@@ -125,6 +125,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <HomeMapSection />
 
       <section className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-8 text-center">

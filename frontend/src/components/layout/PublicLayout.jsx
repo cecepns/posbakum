@@ -1,7 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, User, LogOut } from 'lucide-react';
-import { useState } from 'react';
+import { Scale, Menu, X, User, LogOut, Bell } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/utils/api';
+import { API_ENDPOINTS } from '@/utils/endpoints';
 
 const navLinks = [
   { to: '/', label: 'Beranda' },
@@ -14,8 +16,19 @@ const navLinks = [
 
 export default function PublicLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
   const { user, logout, isStaff } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    if (!user) {
+      setUnread(0);
+      return;
+    }
+    api.get(API_ENDPOINTS.NOTIFICATIONS.LIST, { params: { unread_only: 'true', limit: 1 } })
+      .then((res) => setUnread(res.data.unread_count || 0))
+      .catch(() => setUnread(0));
+  }, [user, location.pathname]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -40,6 +53,14 @@ export default function PublicLayout() {
             {user ? (
               <>
                 {isStaff && <Link to="/admin" className="btn-header-outline !text-xs !py-1.5 !px-3">Admin</Link>}
+                <Link to="/dashboard/notifications" className="relative rounded-lg p-2 hover:bg-primary-700" title="Notifikasi">
+                  <Bell size={18} />
+                  {unread > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold">
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  )}
+                </Link>
                 <Link to="/dashboard" className="flex items-center gap-1 rounded-lg bg-primary-700 px-3 py-2 text-sm hover:bg-primary-600">
                   <User size={16} /> {user.name?.split(' ')[0]}
                 </Link>
@@ -66,6 +87,9 @@ export default function PublicLayout() {
               {user ? (
                 <>
                   <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm">Dashboard Saya</Link>
+                  <Link to="/dashboard/notifications" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm">
+                    Notifikasi{unread > 0 ? ` (${unread})` : ''}
+                  </Link>
                   {isStaff && <Link to="/admin" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm">Admin Panel</Link>}
                   <button onClick={() => { logout(); setMenuOpen(false); }} className="block w-full px-3 py-2 text-left text-sm">Keluar</button>
                 </>
